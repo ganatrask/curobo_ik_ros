@@ -1,0 +1,111 @@
+##
+## cuRoBO configuration for AgileX Nero 7-DOF arm with Pika gripper
+##
+## Converted from config/nero_spheres_v1.xrdf
+## End-effector: gripper_base (Pika gripper mount)
+##
+
+robot_cfg:
+  kinematics:
+    use_usd_kinematics: False
+    urdf_path: "/home/shyam/projects/cc/curobo_eval/robots/nero_urdf/nero_dual_description/urdf/nero_single_isaac.urdf"
+    asset_root_path: "/home/shyam/projects/cc/curobo_eval/robots/nero_urdf/nero_dual_description/urdf"
+    base_link: "base_link"
+    ee_link: "gripper_tip"
+
+    collision_link_names:
+      [
+        "base_link",
+        "link1",
+        "link2",
+        "link3",
+        "link4",
+        "link5",
+        "link6",
+        "link7",
+        "gripper_flange",
+        "gripper_base",
+        "gripper_link1",
+        "gripper_link2",
+        "gripper_tip",
+      ]
+
+    collision_spheres: "/home/shyam/projects/cc/curobo_eval/robots/curobo_configs_1/nero_spheres.yml"
+    collision_sphere_buffer: 0.005
+
+    use_global_cumul: True
+
+    # Lock gripper joints — they are prismatic joints in the URDF but not
+    # part of the planning cspace. cuRobo needs them explicitly locked.
+    lock_joints:
+      gripper_joint1: 0.025   # half open — safer during motion
+      gripper_joint2: -0.025
+
+    self_collision_ignore:
+      {
+        "base_link": ["link1", "link2"],
+        "link1": ["link2", "link3"],
+        "link2": ["link3", "link4"],
+        "link3": ["link4", "link5"],
+        "link4": ["link5", "link6"],
+        "link5": ["link6", "link7", "gripper_flange"],
+        "link6": ["link7", "gripper_flange", "gripper_base"],
+        "link7": ["gripper_flange", "gripper_base", "gripper_link1", "gripper_link2"],
+        "gripper_flange": ["gripper_base", "gripper_link1", "gripper_link2"],
+        "gripper_base": ["gripper_link1", "gripper_link2", "gripper_tip"],
+        "gripper_link1": ["gripper_link2", "gripper_tip"],
+        "gripper_link2": ["gripper_tip"],
+      }
+
+    # Reduced from XRDF values — the original buffers (0.08 base, 0.04 link1)
+    # were too aggressive for the Nero's compact geometry, causing all IK
+    # solutions to be rejected as self-collisions.
+    self_collision_buffer:
+      {
+        "base_link": 0.02,
+        "link1": 0.015,
+        "link2": 0.01,
+        "link3": 0.01,
+        "link4": 0.01,
+        "link5": 0.01,
+        "link6": 0.005,
+        "link7": 0.005,
+        "gripper_flange": 0.005,
+        "gripper_base": 0.005,
+        "gripper_link1": 0.002,
+        "gripper_link2": 0.002,
+      }
+
+    mesh_link_names:
+      [
+        "base_link",
+        "link1",
+        "link2",
+        "link3",
+        "link4",
+        "link5",
+        "link6",
+        "link7",
+        "gripper_base",
+      ]
+
+    cspace:
+      joint_names:
+        [
+          "joint1",
+          "joint2",
+          "joint3",
+          "joint4",
+          "joint5",
+          "joint6",
+          "joint7",
+        ]
+
+      retract_config: [0.0, 0.3, 0.0, 1.0, 0.0, 0.5, 0.0]
+
+      null_space_weight: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+      cspace_distance_weight: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+      max_acceleration: 10.0   # reduced for hardware safety
+      max_jerk: 150.0          # reduced for hardware safety

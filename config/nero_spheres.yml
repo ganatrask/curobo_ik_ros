@@ -1,0 +1,99 @@
+##
+## Collision spheres for AgileX Nero 7-DOF arm with Pika gripper
+## Used by cuRoBO for collision checking
+##
+## Converted from config/nero_spheres_v1.xrdf
+## Sphere centers are in link-local coordinates, radii in meters
+##
+
+collision_spheres:
+
+  base_link:
+    - "center": [-0.046, 0.010, 0.020]
+      "radius": 0.055
+    - "center": [-0.049, -0.010, 0.065]
+      "radius": 0.065
+    - "center": [-0.060, 0.020, 0.115]
+      "radius": 0.058
+
+  link1:
+    - "center": [-0.024, -0.001, -0.044]
+      "radius": 0.060
+    - "center": [-0.023, 0.019, -0.041]
+      "radius": 0.060
+
+  link2:
+    - "center": [-0.004, 0.004, 0.037]
+      "radius": 0.050
+    - "center": [0.003, -0.009, 0.036]
+      "radius": 0.048
+    - "center": [0.040, -0.092, 0.016]
+      "radius": 0.048
+    - "center": [0.039, -0.114, 0.008]
+      "radius": 0.048
+    - "center": [0.032, -0.181, 0.008]
+      "radius": 0.046
+
+  link3:
+    - "center": [0.004, 0.016, -0.184]
+      "radius": 0.052
+    - "center": [-0.001, -0.016, -0.171]
+      "radius": 0.052
+
+  link4:
+    - "center": [-0.001, -0.010, 0.030]
+      "radius": 0.045
+    - "center": [-0.010, -0.039, 0.029]
+      "radius": 0.045
+    - "center": [0.008, -0.014, 0.054]
+      "radius": 0.045
+    - "center": [-0.014, -0.073, -0.003]
+      "radius": 0.044
+
+  link5:
+    - "center": [-0.010, -0.010, -0.154]
+      "radius": 0.043
+    - "center": [-0.027, 0.002, -0.110]
+      "radius": 0.042
+    - "center": [-0.000, -0.000, -0.171]
+      "radius": 0.043
+
+  link6:
+    - "center": [0.018, -0.012, 0.006]
+      "radius": 0.035
+    - "center": [-0.019, -0.016, -0.005]
+      "radius": 0.034
+
+  link7:
+    - "center": [-0.005, 0.004, -0.003]
+      "radius": 0.027
+
+  gripper_flange:
+    - "center": [0.000, 0.000, 0.000]
+      "radius": 0.032
+    - "center": [0.000, 0.000, 0.004]
+      "radius": 0.028
+
+  gripper_base:
+    - "center": [0.000, 0.000, 0.020]
+      "radius": 0.038
+    - "center": [0.000, 0.000, 0.070]
+      "radius": 0.036
+    - "center": [0.000, 0.000, 0.120]
+      "radius": 0.032
+
+  gripper_link1:
+    - "center": [0.000, 0.000, 0.000]
+      "radius": 0.018
+    - "center": [0.000, -0.035, 0.000]
+      "radius": 0.015
+
+  gripper_link2:
+    - "center": [0.000, 0.000, 0.000]
+      "radius": 0.018
+    - "center": [0.000, -0.035, 0.000]
+      "radius": 0.015
+
+  gripper_tip:
+    - "center": [0.000, 0.000, 0.000]
+      "radius": 0.010
