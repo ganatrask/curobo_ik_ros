@@ -64,7 +64,6 @@ class CuRoboIKServiceNode(Node):
             device=device,
             num_seeds=num_seeds,
             self_collision_check=self_collision,
-            self_collision_opt=self_collision,
             rotation_threshold=rot_thresh,
             position_threshold=pos_thresh,
             warmup=do_warmup,

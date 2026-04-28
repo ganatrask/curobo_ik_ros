@@ -47,7 +47,7 @@ def load_config(config_path: str) -> dict:
     # Resolve paths that may be relative to the YAML file's directory
     for key in ("urdf_path", "collision_spheres", "asset_root_path"):
         val = kin.get(key)
-        if val and not os.path.isabs(val):
+        if isinstance(val, str) and val and not os.path.isabs(val):
             kin[key] = os.path.normpath(os.path.join(yaml_dir, val))
 
     return cfg

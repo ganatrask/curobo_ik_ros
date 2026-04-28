@@ -1,17 +1,18 @@
 ##
 ## cuRoBO configuration for AgileX Nero 7-DOF arm with Pika gripper
 ##
-## Converted from config/nero_spheres_v1.xrdf
-## End-effector: gripper_base (Pika gripper mount)
+## Compatible with cuRobo 0.8.x (format_version 2.0)
+## End-effector: gripper_tip (Pika gripper tip)
 ##
 
 robot_cfg:
   kinematics:
-    use_usd_kinematics: False
-    urdf_path: "../robots/nero/urdf/nero_single_isaac.urdf"
-    asset_root_path: "../robots/nero/urdf"
+    format_version: 2.0
+    urdf_path: "/home/shyam/projects/cc/cc_ros_ws/src/curobo_ik_ros/robots/nero/urdf/nero_single_isaac.urdf"
+    asset_root_path: "/home/shyam/projects/cc/cc_ros_ws/src/curobo_ik_ros/robots/nero/urdf"
     base_link: "base_link"
-    ee_link: "gripper_tip"
+    tool_frames:
+      - "gripper_tip"
 
     collision_link_names:
       [
@@ -30,15 +31,14 @@ robot_cfg:
         "gripper_tip",
       ]
 
-    collision_spheres: "nero_spheres.yml"
     collision_sphere_buffer: 0.005
 
     use_global_cumul: True
 
-    # Lock gripper joints — they are prismatic joints in the URDF but not
+    # Lock gripper joints -- they are prismatic joints in the URDF but not
     # part of the planning cspace. cuRobo needs them explicitly locked.
     lock_joints:
-      gripper_joint1: 0.025   # half open — safer during motion
+      gripper_joint1: 0.025   # half open -- safer during motion
       gripper_joint2: -0.025
 
     self_collision_ignore:
@@ -57,7 +57,7 @@ robot_cfg:
         "gripper_link2": ["gripper_tip"],
       }
 
-    # Reduced from XRDF values — the original buffers (0.08 base, 0.04 link1)
+    # Reduced from XRDF values -- the original buffers (0.08 base, 0.04 link1)
     # were too aggressive for the Nero's compact geometry, causing all IK
     # solutions to be rejected as self-collisions.
     self_collision_buffer:
@@ -101,7 +101,7 @@ robot_cfg:
           "joint7",
         ]
 
-      retract_config: [0.0, 0.3, 0.0, 1.0, 0.0, 0.5, 0.0]
+      default_joint_position: [0.0, 0.3, 0.0, 1.0, 0.0, 0.5, 0.0]
 
       null_space_weight: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
@@ -109,3 +109,83 @@ robot_cfg:
 
       max_acceleration: 10.0   # reduced for hardware safety
       max_jerk: 150.0          # reduced for hardware safety
+
+    # Collision spheres (inline for cuRobo 0.8.x compatibility)
+    collision_spheres:
+      base_link:
+        - "center": [-0.046, 0.010, 0.020]
+          "radius": 0.055
+        - "center": [-0.049, -0.010, 0.065]
+          "radius": 0.065
+        - "center": [-0.060, 0.020, 0.115]
+          "radius": 0.058
+      link1:
+        - "center": [-0.024, -0.001, -0.044]
+          "radius": 0.060
+        - "center": [-0.023, 0.019, -0.041]
+          "radius": 0.060
+      link2:
+        - "center": [-0.004, 0.004, 0.037]
+          "radius": 0.050
+        - "center": [0.003, -0.009, 0.036]
+          "radius": 0.048
+        - "center": [0.040, -0.092, 0.016]
+          "radius": 0.048
+        - "center": [0.039, -0.114, 0.008]
+          "radius": 0.048
+        - "center": [0.032, -0.181, 0.008]
+          "radius": 0.046
+      link3:
+        - "center": [0.004, 0.016, -0.184]
+          "radius": 0.052
+        - "center": [-0.001, -0.016, -0.171]
+          "radius": 0.052
+      link4:
+        - "center": [-0.001, -0.010, 0.030]
+          "radius": 0.045
+        - "center": [-0.010, -0.039, 0.029]
+          "radius": 0.045
+        - "center": [0.008, -0.014, 0.054]
+          "radius": 0.045
+        - "center": [-0.014, -0.073, -0.003]
+          "radius": 0.044
+      link5:
+        - "center": [-0.010, -0.010, -0.154]
+          "radius": 0.043
+        - "center": [-0.027, 0.002, -0.110]
+          "radius": 0.042
+        - "center": [-0.000, -0.000, -0.171]
+          "radius": 0.043
+      link6:
+        - "center": [0.018, -0.012, 0.006]
+          "radius": 0.035
+        - "center": [-0.019, -0.016, -0.005]
+          "radius": 0.034
+      link7:
+        - "center": [-0.005, 0.004, -0.003]
+          "radius": 0.027
+      gripper_flange:
+        - "center": [0.000, 0.000, 0.000]
+          "radius": 0.032
+        - "center": [0.000, 0.000, 0.004]
+          "radius": 0.028
+      gripper_base:
+        - "center": [0.000, 0.000, 0.020]
+          "radius": 0.038
+        - "center": [0.000, 0.000, 0.070]
+          "radius": 0.036
+        - "center": [0.000, 0.000, 0.120]
+          "radius": 0.032
+      gripper_link1:
+        - "center": [0.000, 0.000, 0.000]
+          "radius": 0.018
+        - "center": [0.000, -0.035, 0.000]
+          "radius": 0.015
+      gripper_link2:
+        - "center": [0.000, 0.000, 0.000]
+          "radius": 0.018
+        - "center": [0.000, -0.035, 0.000]
+          "radius": 0.015
+      gripper_tip:
+        - "center": [0.000, 0.000, 0.000]
+          "radius": 0.010

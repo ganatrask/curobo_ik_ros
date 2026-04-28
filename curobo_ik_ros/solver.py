@@ -19,7 +19,7 @@ import numpy as np
 
 from curobo_ik_ros.config_loader import load_config
 from curobo_ik_ros.conversions import (
-    ee_state_to_4x4,
+    ee_pose_to_4x4,
     numpy_to_torch,
     pose_4x4_to_curobo,
     poses_4x4_to_curobo_batch,
@@ -40,18 +40,17 @@ class CuRoboIKSolver:
     the single-threaded executor, so this is fine for the service node.
     """
 
-    def __init__(self, ik_solver, ik_solver_pos, kin_model, joint_names,
+    def __init__(self, ik_solver, ik_solver_pos, joint_names,
                  ee_link, base_link, device):
         self._ik = ik_solver
         self._ik_pos = ik_solver_pos
-        self._kin = kin_model
         self._joint_names = list(joint_names)
         self._ee_link = ee_link
         self._base_link = base_link
         self._device = device
 
         # Cache joint limits (avoid repeated GPU->CPU transfer)
-        jl = kin_model.get_joint_limits()
+        jl = ik_solver.kinematics.get_joint_limits()
         self._q_min = torch_to_numpy(jl.position[0])
         self._q_max = torch_to_numpy(jl.position[1])
 
@@ -63,9 +62,9 @@ class CuRoboIKSolver:
         device: str = "cuda:0",
         num_seeds: int = 20,
         self_collision_check: bool = True,
-        self_collision_opt: bool = True,
         rotation_threshold: float = 0.05,
         position_threshold: float = 0.005,
+        max_batch_size: int = 10,
         warmup: bool = True,
     ) -> "CuRoboIKSolver":
         """Create solver from a cuRobo YAML config file.
@@ -76,7 +75,6 @@ class CuRoboIKSolver:
             device: CUDA device string.
             num_seeds: Number of random IK seeds (more = higher solve rate).
             self_collision_check: Enable self-collision checking.
-            self_collision_opt: Enable self-collision optimization.
             rotation_threshold: Orientation convergence threshold (rad).
             position_threshold: Position convergence threshold (meters).
             warmup: Run a dummy solve at init to trigger CUDA kernel compilation.
@@ -84,66 +82,51 @@ class CuRoboIKSolver:
         Returns:
             Configured CuRoboIKSolver instance.
         """
-        from curobo.types.base import TensorDeviceType
-        from curobo.types.robot import RobotConfig
-        from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModel
-        from curobo.wrap.reacher.ik_solver import (
-            IKSolver as CuroboIK,
-            IKSolverConfig,
-        )
+        from curobo.inverse_kinematics import InverseKinematics, InverseKinematicsCfg
 
         logger.info("Loading cuRobo config from %s", config_path)
         cfg_dict = load_config(config_path)
 
+        robot_cfg = cfg_dict["robot_cfg"]
+
         # Override EE link if specified
         if ee_link:
-            cfg_dict["robot_cfg"]["kinematics"]["ee_link"] = ee_link
-        resolved_ee = cfg_dict["robot_cfg"]["kinematics"]["ee_link"]
-        base_link = cfg_dict["robot_cfg"]["kinematics"].get("base_link", "base_link")
-
-        tensor_args = TensorDeviceType(device=device)
-        robot_cfg = RobotConfig.from_dict(cfg_dict["robot_cfg"])
+            robot_cfg["kinematics"]["tool_frames"] = [ee_link]
+        resolved_ee = robot_cfg["kinematics"]["tool_frames"][0]
+        base_link = robot_cfg["kinematics"].get("base_link", "base_link")
 
         # Full 6-DOF IK solver
         logger.info("Building full IK solver (num_seeds=%d)", num_seeds)
-        ik_config = IKSolverConfig.load_from_robot_config(
-            robot_cfg,
-            world_model=None,
-            rotation_threshold=rotation_threshold,
-            position_threshold=position_threshold,
+        ik_config = InverseKinematicsCfg.create(
+            robot=robot_cfg,
+            orientation_tolerance=rotation_threshold,
+            position_tolerance=position_threshold,
             num_seeds=num_seeds,
             self_collision_check=self_collision_check,
-            self_collision_opt=self_collision_opt,
-            tensor_args=tensor_args,
             use_cuda_graph=False,
+            max_batch_size=max_batch_size,
         )
-        ik_solver = CuroboIK(ik_config)
+        ik_solver = InverseKinematics(ik_config)
 
         # Position-only IK solver (very loose rotation threshold)
         logger.info("Building position-only IK solver")
-        ik_config_pos = IKSolverConfig.load_from_robot_config(
-            robot_cfg,
-            world_model=None,
-            rotation_threshold=100.0,  # effectively unconstrained
-            position_threshold=position_threshold,
+        ik_config_pos = InverseKinematicsCfg.create(
+            robot=robot_cfg,
+            orientation_tolerance=100.0,  # effectively unconstrained
+            position_tolerance=position_threshold,
             num_seeds=num_seeds,
             self_collision_check=self_collision_check,
-            self_collision_opt=self_collision_opt,
-            tensor_args=tensor_args,
             use_cuda_graph=False,
+            max_batch_size=max_batch_size,
         )
-        ik_solver_pos = CuroboIK(ik_config_pos)
+        ik_solver_pos = InverseKinematics(ik_config_pos)
 
-        # FK model
-        kin_model = CudaRobotModel(robot_cfg.kinematics)
-
-        # Read joint names from config
-        joint_names = cfg_dict["robot_cfg"]["kinematics"]["cspace"]["joint_names"]
+        # Read joint names from the solver
+        joint_names = ik_solver.joint_names
 
         instance = cls(
             ik_solver=ik_solver,
             ik_solver_pos=ik_solver_pos,
-            kin_model=kin_model,
             joint_names=joint_names,
             ee_link=resolved_ee,
             base_link=base_link,
@@ -210,9 +193,14 @@ class CuRoboIKSolver:
         Returns:
             4x4 numpy array (float64) representing EE pose in base frame.
         """
-        q_t = numpy_to_torch(q, self._device).unsqueeze(0)
-        state = self._kin.get_state(q_t)
-        return ee_state_to_4x4(state)
+        import torch
+        from curobo._src.state.state_joint import JointState
+
+        q_t = numpy_to_torch(q, self._device)
+        js = JointState(position=q_t.unsqueeze(0), joint_names=self._joint_names)
+        kin_state = self._ik.compute_kinematics(js)
+        pose = kin_state.tool_poses[self._ee_link]
+        return ee_pose_to_4x4(pose)
 
     # ------------------------------------------------------------------
     # Inverse kinematics
@@ -235,10 +223,15 @@ class CuRoboIKSolver:
             (joint_positions, success): numpy array of shape (nq,) and bool.
             On failure, returns q_seed (or zeros) and False.
         """
+        from curobo.types import GoalToolPose
+
         goal = pose_4x4_to_curobo(target_pose, self._device)
-        result = self._ik.solve_single(goal)
+        goal_tool = GoalToolPose.from_poses(
+            {self._ee_link: goal}, num_goalset=1
+        )
+        result = self._ik.solve_pose(goal_tool)
         if result.success.item():
-            return torch_to_numpy(result.solution[0, 0]), True
+            return torch_to_numpy(result.js_solution.position[0, 0, :self.nq]), True
         fallback = q_seed if q_seed is not None else np.zeros(self.nq)
         return fallback.copy(), False
 
@@ -257,14 +250,19 @@ class CuRoboIKSolver:
         Returns:
             (joint_positions, success)
         """
+        from curobo.types import GoalToolPose
+
         # Build a target pose with identity orientation (the position-only
-        # solver has rotation_threshold=100 so orientation doesn't matter)
+        # solver has orientation_tolerance=100 so orientation doesn't matter)
         pose_4x4 = np.eye(4)
         pose_4x4[:3, 3] = target_position
         goal = pose_4x4_to_curobo(pose_4x4, self._device)
-        result = self._ik_pos.solve_single(goal)
+        goal_tool = GoalToolPose.from_poses(
+            {self._ee_link: goal}, num_goalset=1
+        )
+        result = self._ik_pos.solve_pose(goal_tool)
         if result.success.item():
-            return torch_to_numpy(result.solution[0, 0]), True
+            return torch_to_numpy(result.js_solution.position[0, 0, :self.nq]), True
         fallback = q_seed if q_seed is not None else np.zeros(self.nq)
         return fallback.copy(), False
 
@@ -280,9 +278,17 @@ class CuRoboIKSolver:
         Returns:
             (joint_positions, success): shapes (N, nq) and (N,) bool.
         """
+        from curobo.inverse_kinematics import InverseKinematics, InverseKinematicsCfg
+        from curobo.types import GoalToolPose
+
         goals = poses_4x4_to_curobo_batch(target_poses, self._device)
-        result = self._ik.solve_batch(goals)
-        q_all = torch_to_numpy(result.solution[:, 0])  # (N, nq)
+        goal_tool = GoalToolPose.from_poses(
+            {self._ee_link: goals}, num_goalset=1
+        )
+        # For batch, we need a solver configured with the right batch size.
+        # Re-solve with the existing solver (it handles batch internally).
+        result = self._ik.solve_pose(goal_tool)
+        q_all = torch_to_numpy(result.js_solution.position[:, 0, :self.nq])  # (N, nq)
         ok_all = result.success.squeeze(-1).cpu().numpy().astype(bool)  # (N,)
         return q_all, ok_all
 
@@ -293,12 +299,15 @@ class CuRoboIKSolver:
     def _warmup(self):
         """Run a dummy IK solve to trigger CUDA kernel compilation."""
         import torch
-        from curobo.types.math import Pose
+        from curobo.types import Pose, GoalToolPose
         dummy = Pose(
             position=torch.zeros(1, 3, device=self._device, dtype=torch.float32),
             quaternion=torch.tensor(
                 [[1.0, 0.0, 0.0, 0.0]], device=self._device, dtype=torch.float32
             ),
         )
-        self._ik.solve_single(dummy)
-        self._ik_pos.solve_single(dummy)
+        goal_tool = GoalToolPose.from_poses(
+            {self._ee_link: dummy}, num_goalset=1
+        )
+        self._ik.solve_pose(goal_tool)
+        self._ik_pos.solve_pose(goal_tool)

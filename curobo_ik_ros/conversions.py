@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import torch
-    from curobo.types.math import Pose
+    from curobo.types import Pose
     from geometry_msgs.msg import Pose as RosPose
 
 
@@ -59,7 +59,7 @@ def pos_quat_wxyz_to_mat4(pos: np.ndarray, quat_wxyz: np.ndarray) -> np.ndarray:
 
 def pose_4x4_to_curobo(pose: np.ndarray, device: str = "cuda:0") -> "Pose":
     """Convert a 4x4 numpy matrix to a cuRobo Pose (single, batched as [1,...])."""
-    from curobo.types.math import Pose
+    from curobo.types import Pose
     pos, quat_wxyz = mat4_to_pos_quat_wxyz(pose)
     return Pose(
         position=numpy_to_torch(pos, device).unsqueeze(0),
@@ -69,7 +69,7 @@ def pose_4x4_to_curobo(pose: np.ndarray, device: str = "cuda:0") -> "Pose":
 
 def poses_4x4_to_curobo_batch(poses: np.ndarray, device: str = "cuda:0") -> "Pose":
     """Convert (N, 4, 4) numpy array to a batched cuRobo Pose."""
-    from curobo.types.math import Pose
+    from curobo.types import Pose
     positions = poses[:, :3, 3].copy()  # (N, 3)
     rots = Rotation.from_matrix(poses[:, :3, :3])
     quats_xyzw = rots.as_quat()  # (N, 4) xyzw
@@ -80,10 +80,10 @@ def poses_4x4_to_curobo_batch(poses: np.ndarray, device: str = "cuda:0") -> "Pos
     )
 
 
-def ee_state_to_4x4(state) -> np.ndarray:
-    """Convert cuRobo KinematicModelState EE output to a 4x4 numpy matrix."""
-    pos = torch_to_numpy(state.ee_position[0])
-    quat_wxyz = torch_to_numpy(state.ee_quaternion[0])
+def ee_pose_to_4x4(pose) -> np.ndarray:
+    """Convert a cuRobo Pose (from tool_poses) to a 4x4 numpy matrix."""
+    pos = torch_to_numpy(pose.position[0])
+    quat_wxyz = torch_to_numpy(pose.quaternion[0])
     return pos_quat_wxyz_to_mat4(pos, quat_wxyz)
 
 

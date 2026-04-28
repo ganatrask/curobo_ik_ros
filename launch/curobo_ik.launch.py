@@ -10,6 +10,8 @@ Usage:
 This will create the service at: /nero/solve_ik
 """
 
+import os
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -17,7 +19,77 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    return LaunchDescription([
+    # Detect conda env path for curobo/torch packages
+    conda_prefix = os.environ.get("CONDA_PREFIX", "")
+    if not conda_prefix:
+        # Default fallback: try to find the 'curobo' conda env
+        conda_base = os.path.expanduser("~/miniconda3")
+        candidate = os.path.join(conda_base, "envs/curobo/lib/python3.12/site-packages")
+        if os.path.isdir(candidate):
+            conda_prefix = os.path.join(conda_base, "envs/curobo")
+
+    conda_site_packages = ""
+    if conda_prefix:
+        candidate = os.path.join(conda_prefix, "lib/python3.12/site-packages")
+        if os.path.isdir(candidate):
+            conda_site_packages = candidate
+
+    # Find editable-installed curobo source path (pip install -e)
+    curobo_src = ""
+    if conda_site_packages:
+        pth_file = os.path.join(conda_site_packages, "__editable__.nvidia_curobo-0.0.0.pth")
+        if os.path.isfile(pth_file):
+            # Editable install: .pth hooks don't work via PYTHONPATH,
+            # so find the actual source directory from the finder module
+            finder = os.path.join(conda_site_packages, "__editable___nvidia_curobo_0_0_0_finder.py")
+            if os.path.isfile(finder):
+                with open(finder) as f:
+                    for line in f:
+                        if "MAPPING" in line and "{" in line:
+                            # Extract path from MAPPING = {'curobo': '/path/to/curobo/curobo'}
+                            import ast
+                            try:
+                                mapping_str = line.split("=", 1)[1].strip()
+                                mapping = ast.literal_eval(mapping_str)
+                                if isinstance(mapping, dict) and "curobo" in mapping:
+                                    curobo_src = os.path.dirname(mapping["curobo"])
+                            except Exception:
+                                pass
+                            break
+        if not curobo_src:
+            # Fallback: check common location
+            fallback = os.path.expanduser("~/projects/cc/curobo")
+            if os.path.isdir(os.path.join(fallback, "curobo")):
+                curobo_src = fallback
+
+    # Build PYTHONPATH with conda packages prepended
+    pythonpath_parts = filter(None, [
+        curobo_src,
+        conda_site_packages,
+        os.environ.get("PYTHONPATH", ""),
+    ])
+    new_pythonpath = ":".join(pythonpath_parts)
+
+    # The ROS node needs the conda Python interpreter (not system Python) so that
+    # cuda.pathfinder and editable installs work correctly. We use prefix to wrap
+    # the command with the conda Python and inject PYTHONPATH for ROS packages.
+    conda_python = ""
+    if conda_prefix:
+        candidate = os.path.join(conda_prefix, "bin/python3")
+        if os.path.isfile(candidate):
+            conda_python = candidate
+
+    prefix_cmd = ""
+    if conda_python:
+        # Re-exec the script with conda python, keeping ROS PYTHONPATH
+        prefix_cmd = (
+            f"bash -c '"
+            f"export PYTHONPATH=\"$PYTHONPATH\"; "
+            f'exec {conda_python} "$@"'
+            f"' --"
+        )
+
+    actions = [
         # Required
         DeclareLaunchArgument(
             "config_path",
@@ -72,6 +144,7 @@ def generate_launch_description():
             executable="ik_service_node.py",
             name="curobo_ik_server",
             namespace=LaunchConfiguration("namespace"),
+            prefix=prefix_cmd,
             parameters=[{
                 "config_path": LaunchConfiguration("config_path"),
                 "ee_link": LaunchConfiguration("ee_link"),
@@ -84,4 +157,6 @@ def generate_launch_description():
             }],
             output="screen",
         ),
-    ])
+    ]
+
+    return LaunchDescription(actions)
