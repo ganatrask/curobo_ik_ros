@@ -8,8 +8,8 @@
 robot_cfg:
   kinematics:
     format_version: 2.0
-    urdf_path: "/home/shyam/projects/cc/cc_ros_ws/src/curobo_ik_ros/robots/nero/urdf/nero_single_isaac.urdf"
-    asset_root_path: "/home/shyam/projects/cc/cc_ros_ws/src/curobo_ik_ros/robots/nero/urdf"
+    urdf_path: "../robots/nero/urdf/nero_single_isaac.urdf"
+    asset_root_path: "../robots/nero/urdf"
     base_link: "base_link"
     tool_frames:
       - "gripper_tip"

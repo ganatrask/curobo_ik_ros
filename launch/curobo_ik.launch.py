@@ -10,6 +10,7 @@ Usage:
 This will create the service at: /nero/solve_ik
 """
 
+import glob
 import os
 
 from launch import LaunchDescription
@@ -18,21 +19,26 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
+def _find_conda_site_packages(prefix: str) -> str:
+    """Find site-packages dir under a conda prefix, auto-detecting Python version."""
+    pattern = os.path.join(prefix, "lib/python3.*/site-packages")
+    matches = sorted(glob.glob(pattern))
+    return matches[-1] if matches else ""
+
+
 def generate_launch_description():
     # Detect conda env path for curobo/torch packages
     conda_prefix = os.environ.get("CONDA_PREFIX", "")
     if not conda_prefix:
-        # Default fallback: try to find the 'curobo' conda env
+        # Fallback: try to find the 'curobo' conda env under ~/miniconda3
         conda_base = os.path.expanduser("~/miniconda3")
-        candidate = os.path.join(conda_base, "envs/curobo/lib/python3.12/site-packages")
-        if os.path.isdir(candidate):
-            conda_prefix = os.path.join(conda_base, "envs/curobo")
+        candidate_prefix = os.path.join(conda_base, "envs/curobo")
+        if _find_conda_site_packages(candidate_prefix):
+            conda_prefix = candidate_prefix
 
     conda_site_packages = ""
     if conda_prefix:
-        candidate = os.path.join(conda_prefix, "lib/python3.12/site-packages")
-        if os.path.isdir(candidate):
-            conda_site_packages = candidate
+        conda_site_packages = _find_conda_site_packages(conda_prefix)
 
     # Find editable-installed curobo source path (pip install -e)
     curobo_src = ""
@@ -56,12 +62,6 @@ def generate_launch_description():
                             except Exception:
                                 pass
                             break
-        if not curobo_src:
-            # Fallback: check common location
-            fallback = os.path.expanduser("~/projects/cc/curobo")
-            if os.path.isdir(os.path.join(fallback, "curobo")):
-                curobo_src = fallback
-
     # Build PYTHONPATH with conda packages prepended
     pythonpath_parts = filter(None, [
         curobo_src,

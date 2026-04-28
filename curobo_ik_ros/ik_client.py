@@ -61,20 +61,35 @@ class CuRoboIKClient:
         joint_names: Optional[list[str]] = None,
         seed_joint_positions: Optional[np.ndarray] = None,
         position_only: bool = False,
+        target_frame: str = "",
     ) -> tuple[np.ndarray, bool]:
         """Call IK service synchronously.
+
+        WARNING: This method calls rclpy.spin_until_future_complete(), which
+        takes over the node's executor. Do NOT call this from inside a
+        callback on a node that is already being spun — it will deadlock.
+        Use solve_async() instead for nodes with their own executor.
+        This method is safe for standalone scripts and CLI tools.
 
         Args:
             target_pose: 4x4 numpy homogeneous matrix of desired EE pose.
             joint_names: Optional joint name list for server-side validation.
             seed_joint_positions: Optional seed (cuRobo ignores, for API compat).
             position_only: If True, solve position-only IK.
+            target_frame: Frame the pose is expressed in (server validates
+                against its base_link; empty = skip check).
 
         Returns:
             (joint_positions, success): numpy array (nq,) and bool.
+            On failure, joint_positions is an empty array.
+
+        Raises:
+            RuntimeError: If the service call itself fails (network error,
+                server crashed, etc.).
         """
         req = SolveIK.Request()
         req.target_pose = numpy_4x4_to_ros_pose(target_pose)
+        req.target_frame = target_frame
         req.joint_names = joint_names or []
         req.seed_joint_positions = (
             seed_joint_positions.tolist() if seed_joint_positions is not None else []
@@ -86,13 +101,15 @@ class CuRoboIKClient:
 
         resp = future.result()
         if resp is None:
-            self._node.get_logger().error("IK service call failed (no response)")
-            return np.zeros(0), False
+            raise RuntimeError(
+                "IK service call failed — no response received. "
+                "Is the curobo_ik_server still running?"
+            )
 
         q = np.array(resp.joint_positions, dtype=np.float64)
 
         if not resp.success:
-            self._node.get_logger().warn(
+            self._node.get_logger().warning(
                 f"IK failed: {resp.error_message} "
                 f"(ee={resp.ee_link}, base={resp.base_frame})"
             )
@@ -105,6 +122,7 @@ class CuRoboIKClient:
         joint_names: Optional[list[str]] = None,
         seed_joint_positions: Optional[np.ndarray] = None,
         position_only: bool = False,
+        target_frame: str = "",
     ) -> tuple[np.ndarray, bool]:
         """Async version for use inside ROS callbacks.
 
@@ -112,6 +130,7 @@ class CuRoboIKClient:
         """
         req = SolveIK.Request()
         req.target_pose = numpy_4x4_to_ros_pose(target_pose)
+        req.target_frame = target_frame
         req.joint_names = joint_names or []
         req.seed_joint_positions = (
             seed_joint_positions.tolist() if seed_joint_positions is not None else []
@@ -120,7 +139,10 @@ class CuRoboIKClient:
 
         resp = await self._client.call_async(req)
         if resp is None:
-            return np.zeros(0), False
+            raise RuntimeError(
+                "IK service call failed — no response received. "
+                "Is the curobo_ik_server still running?"
+            )
 
         q = np.array(resp.joint_positions, dtype=np.float64)
         return q, resp.success
@@ -142,6 +164,8 @@ def main(args=None):
     parser.add_argument("--qx", type=float, default=0.0, help="Quaternion X")
     parser.add_argument("--qy", type=float, default=0.0, help="Quaternion Y")
     parser.add_argument("--qz", type=float, default=0.0, help="Quaternion Z")
+    parser.add_argument("--frame", default="base_link",
+                        help="Frame the target pose is in (default: base_link)")
     parser.add_argument("--position-only", action="store_true",
                         help="Solve position-only IK")
     cli_args = parser.parse_args()
@@ -159,7 +183,10 @@ def main(args=None):
 
     try:
         client = CuRoboIKClient(node, service_name=cli_args.service)
-        q, ok = client.solve(target, position_only=cli_args.position_only)
+        q, ok = client.solve(
+            target, position_only=cli_args.position_only,
+            target_frame=cli_args.frame,
+        )
         if ok:
             print(f"IK SUCCESS")
             print(f"  Joint positions: {q.tolist()}")

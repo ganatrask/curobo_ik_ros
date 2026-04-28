@@ -82,6 +82,18 @@ class CuRoboIKServiceNode(Node):
     def _handle_request(self, request: SolveIK.Request, response: SolveIK.Response) -> SolveIK.Response:
         """Handle incoming IK service requests."""
 
+        # Validate target frame if provided
+        if request.target_frame and request.target_frame != self._solver.base_link:
+            response.success = False
+            response.error_message = (
+                f"Frame mismatch: target_pose is in '{request.target_frame}' "
+                f"but solver expects '{self._solver.base_link}'. "
+                f"Transform the pose to '{self._solver.base_link}' before calling."
+            )
+            response.base_frame = self._solver.base_link
+            self.get_logger().warning(response.error_message)
+            return response
+
         # Validate joint names if provided
         if request.joint_names:
             expected = self._solver.joint_names
@@ -92,7 +104,7 @@ class CuRoboIKServiceNode(Node):
                     f"Joint name mismatch. "
                     f"Expected: {expected}, got: {received}"
                 )
-                self.get_logger().warn(response.error_message)
+                self.get_logger().warning(response.error_message)
                 return response
 
         # Convert ROS Pose -> numpy 4x4
@@ -111,22 +123,32 @@ class CuRoboIKServiceNode(Node):
             q, ok = self._solver.ik(target_4x4, q_seed)
         dt_ms = (time.perf_counter() - t0) * 1000.0
 
-        # Fill response
-        response.success = bool(ok)
-        response.joint_positions = q.tolist()
+        # Fill response metadata (always populated regardless of success)
         response.solved_joint_names = self._solver.joint_names
         response.ee_link = self._solver.ee_link
         response.base_frame = self._solver.base_link
         response.solve_time_ms = dt_ms
 
         if ok:
+            response.success = True
+            response.joint_positions = q.tolist()
+            if dt_ms > 200.0:
+                self.get_logger().warning(
+                    f"IK solve took {dt_ms:.0f}ms (expected <100ms) — "
+                    f"possible GPU contention or thermal throttling"
+                )
             self.get_logger().debug(
                 f"IK solved in {dt_ms:.1f}ms: {q.tolist()}"
             )
         else:
+            response.success = False
+            # Return empty array — not NaN. A client that indexes into an
+            # empty array gets an immediate crash rather than silent NaN
+            # propagation to motor drivers.
+            response.joint_positions = []
             response.error_message = "IK solver failed to find a valid solution"
             pos = target_4x4[:3, 3]
-            self.get_logger().warn(
+            self.get_logger().warning(
                 f"IK failed for target position [{pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}] "
                 f"({dt_ms:.1f}ms)"
             )

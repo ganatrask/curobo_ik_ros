@@ -103,6 +103,13 @@ def ros_pose_to_4x4(ros_pose: "RosPose") -> np.ndarray:
         ros_pose.orientation.z,
         ros_pose.orientation.w,
     ])
+    # Normalize quaternion — real-world clients (MoveIt, teleoperation,
+    # vision pipelines) frequently send slightly non-unit quaternions
+    # due to floating-point drift.
+    qnorm = np.linalg.norm(quat_xyzw)
+    if qnorm < 1e-10:
+        raise ValueError("Quaternion has near-zero norm — invalid orientation")
+    quat_xyzw = quat_xyzw / qnorm
     rot = Rotation.from_quat(quat_xyzw)
     T = np.eye(4)
     T[:3, :3] = rot.as_matrix()

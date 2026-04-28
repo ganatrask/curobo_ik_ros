@@ -4,14 +4,15 @@
 # Service name: /solve_ik (or /<namespace>/solve_ik)
 
 # --- Request ---
-geometry_msgs/Pose target_pose          # Target end-effector pose
+geometry_msgs/Pose target_pose          # Target end-effector pose (must be in base_frame)
+string target_frame                     # Frame the pose is expressed in (must match solver base_frame, empty = skip check)
 string[] joint_names                    # Expected joint order (server validates, empty = skip check)
 float64[] seed_joint_positions          # Optional seed (accepted for API compat, cuRobo ignores)
 bool position_only                      # If true, solve position-only IK (free orientation)
 ---
 # --- Response ---
 bool success                            # True if IK found a valid collision-free solution
-float64[] joint_positions               # Joint angles in radians, same order as solved_joint_names
+float64[] joint_positions               # Joint angles in radians, same order as solved_joint_names (empty on failure)
 string[] solved_joint_names             # Joint names in solution order (for client verification)
 string ee_link                          # EE link the solution was solved for
 string base_frame                       # Base frame of the kinematic chain

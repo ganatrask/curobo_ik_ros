@@ -41,13 +41,14 @@ class CuRoboIKSolver:
     """
 
     def __init__(self, ik_solver, ik_solver_pos, joint_names,
-                 ee_link, base_link, device):
+                 ee_link, base_link, device, max_batch_size):
         self._ik = ik_solver
         self._ik_pos = ik_solver_pos
         self._joint_names = list(joint_names)
         self._ee_link = ee_link
         self._base_link = base_link
         self._device = device
+        self._max_batch_size = max_batch_size
 
         # Cache joint limits (avoid repeated GPU->CPU transfer)
         jl = ik_solver.kinematics.get_joint_limits()
@@ -131,6 +132,7 @@ class CuRoboIKSolver:
             ee_link=resolved_ee,
             base_link=base_link,
             device=device,
+            max_batch_size=max_batch_size,
         )
 
         if warmup:
@@ -206,11 +208,43 @@ class CuRoboIKSolver:
     # Inverse kinematics
     # ------------------------------------------------------------------
 
+    def _validate_joint_limits(self, q: np.ndarray) -> tuple[np.ndarray, bool]:
+        """Check IK solution against joint limits.
+
+        If the solution is outside limits by more than a small tolerance
+        (1e-4 rad), log a warning and reject it. Small numerical violations
+        are clamped silently.
+
+        Returns:
+            (q, valid): clamped solution and whether it passed validation.
+        """
+        margin = 1e-4  # ~0.006 deg — numerical noise from GPU float32
+        violations_lo = q < (self._q_min - margin)
+        violations_hi = q > (self._q_max + margin)
+        if np.any(violations_lo) or np.any(violations_hi):
+            violated = []
+            for i in range(self.nq):
+                if violations_lo[i]:
+                    violated.append(
+                        f"{self._joint_names[i]}: {q[i]:.6f} < min {self._q_min[i]:.6f}"
+                    )
+                elif violations_hi[i]:
+                    violated.append(
+                        f"{self._joint_names[i]}: {q[i]:.6f} > max {self._q_max[i]:.6f}"
+                    )
+            logger.warning(
+                "IK solution violates joint limits — rejecting: %s",
+                "; ".join(violated),
+            )
+            return np.full(self.nq, np.nan), False
+        # Clamp only tiny float32 rounding errors
+        q = np.clip(q, self._q_min, self._q_max)
+        return q, True
+
     def ik(
         self,
         target_pose: np.ndarray,
         q_seed: Optional[np.ndarray] = None,
-        **kwargs,
     ) -> tuple[np.ndarray, bool]:
         """Full 6-DOF inverse kinematics.
 
@@ -221,7 +255,7 @@ class CuRoboIKSolver:
 
         Returns:
             (joint_positions, success): numpy array of shape (nq,) and bool.
-            On failure, returns q_seed (or zeros) and False.
+            On failure, returns NaN array and False.
         """
         from curobo.types import GoalToolPose
 
@@ -231,15 +265,14 @@ class CuRoboIKSolver:
         )
         result = self._ik.solve_pose(goal_tool)
         if result.success.item():
-            return torch_to_numpy(result.js_solution.position[0, 0, :self.nq]), True
-        fallback = q_seed if q_seed is not None else np.zeros(self.nq)
-        return fallback.copy(), False
+            q = torch_to_numpy(result.js_solution.position[0, 0, :self.nq])
+            return self._validate_joint_limits(q)
+        return np.full(self.nq, np.nan), False
 
     def ik_position(
         self,
         target_position: np.ndarray,
         q_seed: Optional[np.ndarray] = None,
-        **kwargs,
     ) -> tuple[np.ndarray, bool]:
         """Position-only IK (orientation unconstrained).
 
@@ -262,9 +295,9 @@ class CuRoboIKSolver:
         )
         result = self._ik_pos.solve_pose(goal_tool)
         if result.success.item():
-            return torch_to_numpy(result.js_solution.position[0, 0, :self.nq]), True
-        fallback = q_seed if q_seed is not None else np.zeros(self.nq)
-        return fallback.copy(), False
+            q = torch_to_numpy(result.js_solution.position[0, 0, :self.nq])
+            return self._validate_joint_limits(q)
+        return np.full(self.nq, np.nan), False
 
     def ik_batch(
         self,
@@ -278,18 +311,31 @@ class CuRoboIKSolver:
         Returns:
             (joint_positions, success): shapes (N, nq) and (N,) bool.
         """
-        from curobo.inverse_kinematics import InverseKinematics, InverseKinematicsCfg
         from curobo.types import GoalToolPose
+
+        n = target_poses.shape[0]
+        if n > self._max_batch_size:
+            raise ValueError(
+                f"Batch size {n} exceeds max_batch_size={self._max_batch_size}. "
+                f"Split into smaller batches or increase max_batch_size at init."
+            )
 
         goals = poses_4x4_to_curobo_batch(target_poses, self._device)
         goal_tool = GoalToolPose.from_poses(
             {self._ee_link: goals}, num_goalset=1
         )
-        # For batch, we need a solver configured with the right batch size.
-        # Re-solve with the existing solver (it handles batch internally).
         result = self._ik.solve_pose(goal_tool)
         q_all = torch_to_numpy(result.js_solution.position[:, 0, :self.nq])  # (N, nq)
         ok_all = result.success.squeeze(-1).cpu().numpy().astype(bool)  # (N,)
+
+        # Validate joint limits for successful entries; reject violators
+        for i in range(n):
+            if ok_all[i]:
+                q_all[i], ok_all[i] = self._validate_joint_limits(q_all[i])
+
+        # NaN out failed entries so they can't accidentally be used
+        q_all[~ok_all] = np.nan
+
         return q_all, ok_all
 
     # ------------------------------------------------------------------

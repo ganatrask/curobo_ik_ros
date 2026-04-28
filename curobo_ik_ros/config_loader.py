@@ -50,4 +50,13 @@ def load_config(config_path: str) -> dict:
         if isinstance(val, str) and val and not os.path.isabs(val):
             kin[key] = os.path.normpath(os.path.join(yaml_dir, val))
 
+    # Validate critical files exist after resolution
+    urdf_path = kin.get("urdf_path", "")
+    if urdf_path and not os.path.isfile(urdf_path):
+        raise FileNotFoundError(
+            f"URDF file not found: {urdf_path}\n"
+            f"  (resolved from config: {config_path})\n"
+            f"  Check that the urdf_path in the YAML is correct relative to the config directory."
+        )
+
     return cfg
