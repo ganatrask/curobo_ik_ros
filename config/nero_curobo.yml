@@ -8,8 +8,8 @@
 robot_cfg:
   kinematics:
     use_usd_kinematics: False
-    urdf_path: "/home/shyam/projects/cc/curobo_eval/robots/nero_urdf/nero_dual_description/urdf/nero_single_isaac.urdf"
-    asset_root_path: "/home/shyam/projects/cc/curobo_eval/robots/nero_urdf/nero_dual_description/urdf"
+    urdf_path: "../robots/nero/urdf/nero_single_isaac.urdf"
+    asset_root_path: "../robots/nero/urdf"
     base_link: "base_link"
     ee_link: "gripper_tip"
 
@@ -30,7 +30,7 @@ robot_cfg:
         "gripper_tip",
       ]
 
-    collision_spheres: "/home/shyam/projects/cc/curobo_eval/robots/curobo_configs_1/nero_spheres.yml"
+    collision_spheres: "nero_spheres.yml"
     collision_sphere_buffer: 0.005
 
     use_global_cumul: True

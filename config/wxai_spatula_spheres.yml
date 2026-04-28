@@ -1,0 +1,116 @@
+##
+## Collision spheres for WidowX AI robot with spatula
+## Used by cuRoBO for collision checking
+##
+## Sphere centers are in link-local coordinates
+## Radii are in meters
+##
+
+collision_spheres:
+  # Smaller spheres to avoid false collisions during planning
+  # These are approximations - use Isaac Sim's Lula tools for precise fitting
+
+  base_link:
+    - "center": [0.0, 0.0, 0.03]
+      "radius": 0.04
+    - "center": [0.0, 0.0, 0.05]
+      "radius": 0.035
+
+  link_1:
+    - "center": [0.0, 0.0, 0.02]
+      "radius": 0.03
+    - "center": [0.0, 0.0, 0.04]
+      "radius": 0.03
+
+  link_2:
+    - "center": [-0.06, 0.0, 0.0]
+      "radius": 0.03
+    - "center": [-0.12, 0.0, 0.0]
+      "radius": 0.028
+    - "center": [-0.18, 0.0, 0.0]
+      "radius": 0.028
+    - "center": [-0.24, 0.0, 0.0]
+      "radius": 0.028
+
+  link_3:
+    - "center": [0.06, 0.0, 0.02]
+      "radius": 0.028
+    - "center": [0.12, 0.0, 0.03]
+      "radius": 0.028
+    - "center": [0.18, 0.0, 0.045]
+      "radius": 0.028
+    - "center": [0.24, 0.0, 0.058]
+      "radius": 0.028
+
+  link_4:
+    - "center": [0.03, 0.0, 0.03]
+      "radius": 0.028
+    - "center": [0.06, 0.0, 0.045]
+      "radius": 0.025
+
+  link_5:
+    - "center": [0.0, 0.0, -0.02]
+      "radius": 0.028
+    - "center": [0.0, 0.0, -0.04]
+      "radius": 0.025
+
+  link_6:
+    - "center": [0.03, 0.0, 0.0]
+      "radius": 0.025
+    - "center": [0.06, 0.0, 0.0]
+      "radius": 0.022
+    - "center": [0.08, 0.0, 0.0]
+      "radius": 0.020
+
+  # End effector / gripper
+  ee_gripper_link:
+    - "center": [0.0, 0.0, 0.0]
+      "radius": 0.018
+
+  # Spatula — mesh-fitted collision spheres
+  # Mesh bounds: X=[0.01, 0.34]m, Y=[-0.041, 0.040]m, Z=[-0.039, 0.038]m
+  # spatula_link origin is at ee_gripper_link offset -0.07m in X
+  spatula_link:
+    # Holder / gripper mount (x=0.01–0.08, wide bracket)
+    - "center": [0.015, 0.0, 0.004]
+      "radius": 0.045
+    - "center": [0.058, 0.0, 0.001]
+      "radius": 0.035
+    # Handle transition (x=0.08–0.10, narrows)
+    - "center": [0.10, 0.0, 0.001]
+      "radius": 0.025
+    # Handle (x=0.12–0.19, thin rod ~13mm wide)
+    - "center": [0.135, 0.0, 0.001]
+      "radius": 0.013
+    - "center": [0.17, 0.0, 0.002]
+      "radius": 0.010
+    - "center": [0.19, 0.0, 0.002]
+      "radius": 0.010
+    # Neck / widening to head (x=0.21–0.25)
+    - "center": [0.21, 0.0, 0.0]
+      "radius": 0.020
+    - "center": [0.235, 0.0, 0.0]
+      "radius": 0.032
+    # Spoon head center line (x=0.25–0.34, up to 81mm wide)
+    - "center": [0.265, 0.0, 0.003]
+      "radius": 0.043
+    - "center": [0.295, 0.0, 0.009]
+      "radius": 0.044
+    - "center": [0.32, 0.0, 0.016]
+      "radius": 0.044
+    - "center": [0.339, 0.0, 0.022]
+      "radius": 0.042
+    # Spoon head side spheres (cover the Y-width at widest points)
+    - "center": [0.275, 0.020, 0.004]
+      "radius": 0.023
+    - "center": [0.275, -0.020, 0.004]
+      "radius": 0.023
+    - "center": [0.32, 0.020, 0.016]
+      "radius": 0.023
+    - "center": [0.32, -0.020, 0.016]
+      "radius": 0.023
+
+  # Spatula tip frame (virtual, small sphere)
+  spatula_tip:
+    - "center": [0.0, 0.0, 0.0]
+      "radius": 0.005

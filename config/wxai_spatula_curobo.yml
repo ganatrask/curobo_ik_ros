@@ -1,0 +1,116 @@
+##
+## cuRoBO configuration for WidowX AI robot with spatula
+##
+## This config is used by cuRoBO for motion planning with collision avoidance.
+## The robot has 6 DOF arm + 2 DOF gripper (gripper locked open for spatula tasks).
+##
+## End-effector: spatula_tip (0.43m from link_6)
+##
+
+robot_cfg:
+  kinematics:
+    use_usd_kinematics: False
+    # Paths are relative to this YAML file's directory — resolved at load time
+    urdf_path: "../robots/wxai/wxai_follower_spatula.urdf"
+    asset_root_path: "../robots/wxai"
+    base_link: "base_link"
+    ee_link: "spatula_tip"
+
+    # Links to check for collision with world obstacles
+    collision_link_names:
+      [
+        "base_link",
+        "link_1",
+        "link_2",
+        "link_3",
+        "link_4",
+        "link_5",
+        "link_6",
+        "ee_gripper_link",
+        "spatula_link",
+        "spatula_tip",
+      ]
+
+    # Collision sphere approximation for each link
+    # Must be absolute — cuRobo resolves relative paths against its own config dir
+    collision_spheres: "wxai_spatula_spheres.yml"
+    collision_sphere_buffer: 0.015  # 15mm safety margin to prevent visual mesh clipping obstacles
+
+    # Use cumulative transform for faster kinematics
+    use_global_cumul: True
+
+    # Self-collision ignore pairs (adjacent links don't need checking)
+    self_collision_ignore:
+      {
+        "base_link": ["link_1", "link_2"],
+        "link_1": ["link_2", "link_3"],
+        "link_2": ["link_3", "link_4"],
+        "link_3": ["link_4", "link_5", "link_6"],
+        "link_4": ["link_5", "link_6", "ee_gripper_link"],
+        "link_5": ["link_6", "ee_gripper_link", "spatula_link"],
+        "link_6": ["ee_gripper_link", "spatula_link", "spatula_tip"],
+        "ee_gripper_link": ["spatula_link", "spatula_tip"],
+        "spatula_link": ["spatula_tip"],
+      }
+
+    # Self-collision distance buffers
+    self_collision_buffer:
+      {
+        "base_link": 0.08,
+        "link_1": 0.04,
+        "link_2": 0.02,
+        "link_3": 0.02,
+        "link_4": 0.02,
+        "link_5": 0.02,
+        "link_6": 0.02,
+        "ee_gripper_link": 0.01,
+        "spatula_link": 0.01,
+        "spatula_tip": 0.0,
+      }
+
+    # Links to use for mesh-based collision (visual meshes)
+    mesh_link_names:
+      [
+        "base_link",
+        "link_1",
+        "link_2",
+        "link_3",
+        "link_4",
+        "link_5",
+        "link_6",
+        "spatula_link",
+      ]
+
+    # Note: Gripper joints (left_carriage_joint, right_carriage_joint) are not locked here
+    # because they use mimic constraints which cuRoBO has trouble parsing.
+    # Instead, we simply don't include them in cspace and they remain at URDF default.
+
+    # Configuration space definition
+    cspace:
+      # Only the 6 arm joints are actuated for planning
+      joint_names:
+        [
+          "joint_0",
+          "joint_1",
+          "joint_2",
+          "joint_3",
+          "joint_4",
+          "joint_5",
+        ]
+
+      # Default retract configuration (collision-free home pose)
+      # Based on the working trajectory from scripted_pour_lula.py
+      retract_config: [0.0, 0.5, 0.5, 0.0, 0.0, 0.0]
+
+      # Null space weights (equal priority for all joints)
+      null_space_weight: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+      # Configuration space distance weights
+      cspace_distance_weight: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+      # Kinematic limits
+      max_acceleration: 10.0  # rad/s^2 - conservative for smooth motion
+      max_jerk: 200.0         # rad/s^3 - conservative for smooth motion
+
+      # NOTE: Wrist locking (joint_5 = 0) is enforced in the script, not here.
+      # cuRoBO in Isaac Sim 5.1 doesn't support position_limit in cspace config.
