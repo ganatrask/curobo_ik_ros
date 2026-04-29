@@ -438,7 +438,7 @@ rm -rf build/curobo_ik_ros install/curobo_ik_ros
 
 # Build
 source /opt/ros/jazzy/setup.bash
-cd ~/cc_ros_ws
+cd ~/ros2_ws
 colcon build --packages-select curobo_ik_ros
 source install/setup.bash
 ```

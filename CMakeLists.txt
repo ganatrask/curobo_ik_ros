@@ -36,6 +36,11 @@ install(DIRECTORY config/
   DESTINATION share/${PROJECT_NAME}/config
 )
 
+# Install robot files (URDFs, meshes, etc.)
+install(DIRECTORY robots/
+  DESTINATION share/${PROJECT_NAME}/robots
+)
+
 # Install executable scripts
 install(PROGRAMS
   curobo_ik_ros/ik_service_node.py

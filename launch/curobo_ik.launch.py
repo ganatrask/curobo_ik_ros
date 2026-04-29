@@ -2,8 +2,15 @@
 Launch file for cuRobo IK service node.
 
 Usage:
+    # Using package-relative config (recommended):
     ros2 launch curobo_ik_ros curobo_ik.launch.py \
-        config_path:=/path/to/nero_curobo.yml \
+        config_file:=nero_curobo.yml \
+        ee_link:=gripper_tip \
+        namespace:=nero
+
+    # Using absolute path:
+    ros2 launch curobo_ik_ros curobo_ik.launch.py \
+        config_path:=/absolute/path/to/nero_curobo.yml \
         ee_link:=gripper_tip \
         namespace:=nero
 
@@ -15,8 +22,9 @@ import os
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def _find_conda_site_packages(prefix: str) -> str:
@@ -30,11 +38,19 @@ def generate_launch_description():
     # Detect conda env path for curobo/torch packages
     conda_prefix = os.environ.get("CONDA_PREFIX", "")
     if not conda_prefix:
-        # Fallback: try to find the 'curobo' conda env under ~/miniconda3
-        conda_base = os.path.expanduser("~/miniconda3")
-        candidate_prefix = os.path.join(conda_base, "envs/curobo")
-        if _find_conda_site_packages(candidate_prefix):
-            conda_prefix = candidate_prefix
+        # Fallback: try to find the 'curobo' conda env in common locations
+        conda_bases = [
+            os.path.expanduser("~/miniconda3"),
+            os.path.expanduser("~/anaconda3"),
+            os.path.expanduser("~/miniforge3"),
+            "/opt/conda",
+        ]
+        for conda_base in conda_bases:
+            if os.path.isdir(conda_base):
+                candidate_prefix = os.path.join(conda_base, "envs/curobo")
+                if _find_conda_site_packages(candidate_prefix):
+                    conda_prefix = candidate_prefix
+                    break
 
     conda_site_packages = ""
     if conda_prefix:
@@ -89,11 +105,24 @@ def generate_launch_description():
             f"' --"
         )
 
+    # Build default config path using package share directory
+    default_config_path = PathJoinSubstitution([
+        FindPackageShare('curobo_ik_ros'),
+        'config',
+        LaunchConfiguration('config_file')
+    ])
+
     actions = [
-        # Required
+        # Config file specification (use either config_file OR config_path)
+        DeclareLaunchArgument(
+            "config_file",
+            default_value="nero_curobo.yml",
+            description="Config filename relative to package config/ directory (e.g., nero_curobo.yml)",
+        ),
         DeclareLaunchArgument(
             "config_path",
-            description="Absolute path to cuRobo YAML config file",
+            default_value=default_config_path,
+            description="Absolute path to cuRobo YAML config file (overrides config_file if provided)",
         ),
 
         # Optional overrides

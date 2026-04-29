@@ -32,7 +32,7 @@ This package wraps cuRobo's GPU-based IK solver into two layers:
 ### 1. Clone the repository
 
 ```bash
-mkdir -p ~/cc_ros_ws/src && cd ~/cc_ros_ws/src
+mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src
 git clone <repo-url> curobo_ik_ros
 ```
 
@@ -60,7 +60,7 @@ conda run -n curobo python -c "import torch; print(torch.__version__, '| CUDA:',
 ### 4. Install cuRobo from source
 
 ```bash
-cd ~/cc_ros_ws/src
+cd ~/ros2_ws/src
 git clone https://github.com/NVlabs/curobo.git
 cd curobo
 conda run -n curobo pip install -e . --no-build-isolation   # ~20 minutes (CUDA kernel compilation)
@@ -77,7 +77,7 @@ conda run -n curobo python -c "from curobo.inverse_kinematics import InverseKine
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-cd ~/cc_ros_ws
+cd ~/ros2_ws
 colcon build --packages-select curobo_ik_ros
 source install/setup.bash
 ```
@@ -85,7 +85,7 @@ source install/setup.bash
 ### 6. Verify
 
 ```bash
-cd ~/cc_ros_ws/src/curobo_ik_ros
+cd ~/ros2_ws/src/curobo_ik_ros
 ~/miniconda3/envs/curobo/bin/python test/test_solver.py
 ```
 
@@ -110,9 +110,9 @@ q_batch, ok_batch = solver.ik_batch(poses_Nx4x4)   # batch IK
 
 ```bash
 # Terminal 1: Launch
-source /opt/ros/jazzy/setup.bash && source ~/cc_ros_ws/install/setup.bash
+source /opt/ros/jazzy/setup.bash && source ~/ros2_ws/install/setup.bash
 ros2 launch curobo_ik_ros curobo_ik.launch.py \
-    config_path:=$HOME/cc_ros_ws/src/curobo_ik_ros/config/nero_curobo.yml \
+    config_file:=nero_curobo.yml \
     ee_link:=gripper_tip \
     namespace:=nero
 
@@ -127,9 +127,9 @@ ros2 service call /nero/solve_ik curobo_ik_ros/srv/SolveIK \
 
 ```bash
 # Terminal 1: Launch
-source /opt/ros/jazzy/setup.bash && source ~/cc_ros_ws/install/setup.bash
+source /opt/ros/jazzy/setup.bash && source ~/ros2_ws/install/setup.bash
 ros2 launch curobo_ik_ros curobo_ik.launch.py \
-    config_path:=$HOME/cc_ros_ws/src/curobo_ik_ros/config/wxai_spatula_curobo.yml \
+    config_file:=wxai_spatula_curobo.yml \
     ee_link:=spatula_tip \
     namespace:=wxai
 
